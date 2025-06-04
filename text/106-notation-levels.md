@@ -31,10 +31,10 @@ The `Declare Notation Level` command acts at Require time.
 
 ### Default Hardcoded Levels
 
-* top (current 200, non assoc)
+* bot (current 200, non assoc)
 * app (current 10, left assoc)
 * postfix (current 1, left assoc)
-* bot (current 0, non assoc)
+* top (current 0, non assoc)
 
 ### Corelib levels
 
@@ -86,8 +86,8 @@ two different libraries with independent notation levels, one would:
 ### Corelib levels
 
 Constraints in Init/Notations.v:
-pow = 30 < inv = opp = 35 < mul = orb = 40 < add = andb = 50 < eq = 70
-< lnot = 75 < land = 80 < lor = 85 < iff = 95 < arrow = 99
+arrow = 99 < iff = 95 < lor = 85 < land = 80 < lnot = 75
+< eq = 70 < add = andb = 50 < mul = orb = 40 < inv = opp = 35 < pow = 30
 
 ## Reserving Notations
 
