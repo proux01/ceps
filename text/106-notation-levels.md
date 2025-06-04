@@ -106,9 +106,11 @@ associativity of its level. It can only be changed to non assoc.
 ## Printing
 
 ```
-Print Notation Levels.
+Print Notation Levels [in custom_entry].
 ```
 
 would print all used levels as an ordered list, then declared but
 unsuded levels and their constraints. All levels are printed along
 with their associativity.
+
+Entry defaults to "in constr".
