@@ -22,12 +22,7 @@ Entry defaults to "in constr".
 Levels are qualified. Declaring a level twice (in the same module) is
 an error.
 
-Each level has two characteristics, it is either:
-* declared or not
-* used or not.
-When declared, a new level is declared but not used yet.
-
-The `Declare Notation Level` command acts at Require time.
+The `Declare Notation Level` command acts at `Import` time.
 
 ### Default Hardcoded Levels
 
@@ -35,6 +30,8 @@ The `Declare Notation Level` command acts at Require time.
 * app (current 10, left assoc)
 * postfix (current 1, left assoc)
 * top (current 0, non assoc)
+
+Question: should we use other names for bot/top: base and closed for instance?
 
 ### Corelib levels
 
@@ -55,10 +52,8 @@ We have some levels declared in Init/Notations.v:
 
 ## Ordering Levels
 
-We enforce a total order between used levels. bot/top are always at
-bottom/top respectively. However we maintain an (acyclic) graph of
-constraints since position of a level can remain unspecified until its
-first use.
+Bot/top are always at bottom/top respectively. We maintain an acyclic
+graph of constraints.
 
 ```
 Notation Level Constraint qualid ((=|<) qualid)+ [in custom_entry].
@@ -68,7 +63,7 @@ Entry defaults to "in constr".
 
 Mentioning undeclared levels is an error.
 
-An unsatisfiable contraint is an error.
+An unsatisfiable contraint (i.e., making the graph cyclic) is an error.
 
 For equality constraints, levels needs to be compatible (i.e. we
 cannot require equality between left assoc and right assoc levels).
@@ -76,12 +71,34 @@ cannot require equality between left assoc and right assoc levels).
 For backward compat, we have implicit constraints between numbered
 levels (to be removed later when cleaning up numbered levels).
 
-The `Notation Level Constraint` acts at Import time. Thus, to require
-two different libraries with independent notation levels, one would:
-* `Require Import` first library
-* only `Require` the second one
-* add the necessary `Notation Level Constraint`
-* `Import` second library
+Question: should we warn when adding an already there (potentially by
+transitivity) constraint.
+
+The `Notation Level Constraint` acts at `Import` time.
+
+### Removing constraints
+
+In could happen that two libraries A and B impose incompatible orders
+on two common dependencies D and E (for instance A would constrain
+`D.l < E.l` and B would constrain `E.l < D.l`). In order to be able to
+use A and B together, we need a way to remove constraints (for
+instance remove the `D.l < E.l` constraint after loading A, in order
+to be able to load B).
+
+```
+#[remove] Notation Level Constraint qualid ((=|<) qualid)+ [in custom_entry].
+```
+
+Attempting to remove a non existing constraint is a warning (error by
+default).
+
+Note: when removing an equality constraint, we need to trigger the
+"common prefix with incompatible levels" warning, in case the
+no-longer equal levels are used in common prefixes of reserved
+notations.
+
+Question: should we warn when a removed constraint remains there by
+transitivity?
 
 ### Corelib levels
 
@@ -96,12 +113,14 @@ Same as currently, except that named levels are allowed.
 Mentioning an undeclared level when reserving a notation is an error
 (for backward compat, only a warning for numbered levels).
 
-All levels mentioned in the newly reserved notation become used (if
-they weren't already). If the order of used levels is no longer total,
-this is an error.
-
 Associativity of the newly declared notation defaults to the
 associativity of its level. It can only be changed to non assoc.
+
+Reserving a notation twice with different levels remains an error.
+
+Reserving a notation with a prefix common to an already reserved
+notation, but with different levels, remains a warning ("common prefix
+with incompatible levels").
 
 ## Printing
 
@@ -114,3 +133,20 @@ unsuded levels and their constraints. All levels are printed along
 with their associativity.
 
 Entry defaults to "in constr".
+
+The `Print Grammar` command should also print the subset of levels
+used in the printed grammar.
+
+## Remarks
+
+* We need to modify our camlp5 fork (file gramlib/grammar.ml) to work
+  with non total ordering of levels.
+* Ignoring the "common prefix with incompatible levels" warning could
+  lead to unexpected results (essentially, reserved notations "not
+  working"), just as is already the case today.
+* Attempting to use notations at incomparable levels will yield an
+  error, requiring either parenthesizing or ordering the levels. E.g.,
+  if `_ #A _` is defined in some lib A at some level and `_ #B _` is
+  defined in some lib B at another --- incomparable --- level, then we
+  don't know how `x #A y #B z` should be parsed (is it `x #A (y #B z)`
+  or `(x #A y) #B z`?) and this yields an error at parsing time.
