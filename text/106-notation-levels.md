@@ -12,10 +12,8 @@
 Declare Notation Level id [left associativity|right associativity|no associativity] [in custom_entry].
 ```
 
-Each level is declared either left assoc (accepts left assoc and non
-assoc notations) or right assoc (accepts right assoc and non assoc
-notations) or non assoc (only accepts non assoc notations). Default:
-no associativity.
+Each level is declared either left assoc or right assoc or non
+assoc. Default: no associativity.
 
 Entry defaults to "in constr".
 
@@ -65,8 +63,8 @@ Mentioning undeclared levels is an error.
 
 An unsatisfiable contraint (i.e., making the graph cyclic) is an error.
 
-For equality constraints, levels needs to be compatible (i.e. we
-cannot require equality between left assoc and right assoc levels).
+For equality constraints, levels needs to be compatible (i.e. have the
+exact same associativity).
 
 For backward compat, we have implicit constraints between numbered
 levels (to be removed later when cleaning up numbered levels).
@@ -113,8 +111,8 @@ Same as currently, except that named levels are allowed.
 Mentioning an undeclared level when reserving a notation is an error
 (for backward compat, only a warning for numbered levels).
 
-Associativity of the newly declared notation defaults to the
-associativity of its level. It can only be changed to non assoc.
+Associativity of the newly declared notation is the associativity of
+its level. It cannot be changed.
 
 Reserving a notation twice with different levels remains an error.
 
