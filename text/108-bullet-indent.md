@@ -63,7 +63,40 @@ main goal, constituting the bulk of the proof.
 
 # Detailed design
 
-We have a stack of
+We add a new bullet behavior:
+
+```Coq
+Set Bullet Behavior "Indent".
+```
+
+## Example
+
+```Coq
+Set Default Goal Selector "!".
+Set Bullet Behavior "Indent".
+
+Goal True /\ True /\ (True /\ True).
+Proof.
+split.
+  exact I.  (* positive indentation, exactly two goals, focusing first *)
+split; [|split].  (* last subgoal, using negative indentation *)
+- exact I. (* regular use of bullets *)
+- exact I.
+exact I.  (* last subgoal, using negative indentation *)
+Qed.
+```
+
+## Main ideas
+
+In addition to current bullets:
+* a *positive indentation* (a line being more indented than previous one)
+  acts as a bullet when there are exactly two focused goals ;
+* a *negative indentation* (a line being less indented than previous one)
+  acts as a last bullet (when there is exactly one focused goal)
+
+## Algorithm
+
+We use a stack of
 
 ```ocaml
 type indent =
@@ -71,37 +104,77 @@ type indent =
   | IndentTactic of int
 ```
 
-When encountering new bullet `b` at indentation `indent`:
-* look in stack for same bullet
-  * if found, check for same indentation,
-    if not same indentation, warn about indentation
-  * if not found, if top of stack is `IndentTactic pre_indent`,
-    check that `indent = pre_indent`, otherwise warn about indentation
-* check that at least two goals are focused
-* then pop stack, adding `IndentBullet (b, indent)` on top of stack
-  and focus first goal, as of today
+When encountering a new bullet `b` at indentation `indent` we
+essentially handle it as of today, with a few additional warnings:
+* look in the stack for the same bullet `IdentBullet(b, pre_indent)`
+  * when found, warn if `indent != pre_indent`
+  * otherwise, if the top of the stack is `IndentTactic pre_indent`,
+    warn if `indent != pre_indent`
+* then, warn if a single goal is focused (the bullet is useless)
+* then proceed with current algorithm for bullets.
 
-When encountering tactic at indentation `indent`:
-* if top of stack is `IndentBullet (_, pre_indent)`,
-  check that `indent >= pre_indent` (otherwise warn about indentation)
-  and add `IndentTactic indent` of top of stack
-* otherwise top of stack is `IndentTactic pre_indent`
-  * if `indent = pre_indent`, nothing to do
-  * if `indent > pre_indent` (let's call that "positive indentation"),
-    check exactly two focused goals (otherwise error too many goals),
-    focus first and add `IndentTactic indent` of top of stack
-  * if `indent < pre_indent` (let's call that "negative indentation"),
-    check for absence of focused goal (raise an error if any),
-    unfocus and pop stack, warn about indentation if `indent` doesn't match top of stack,
-    check for single focused goal and add `IndentTactic indent` on top of stack
+When encountering a tactic at indentation `indent`:
+* if the top of the stack is `IndentBullet (_, pre_indent)`,
+  warn if `indent <= pre_indent`, focus the first goal
+  and add `IndentTactic indent` of top of the stack
+* otherwise, the top of the stack is `IndentTactic pre_indent`
+  * if `indent = pre_indent`, do nothing
+  * if `indent > pre_indent`, we have a *positive indentation*,
+    * raise an error if there are not exactly two focused goals
+    * then, focus the first goal and add `IndentTactic indent` of top of the stack
+  * if `indent < pre_indent`, we have a *negative indentation*,
+    * raise an error if there is any focused goal
+    * then, repeatedly pop the stack until we get a focused goal on top of it
+      (raise an error if it becomes empty)
+    * warn if `indent` doesn't match the indentation on top of the stack
+    * raise an error if there isn't exactly one focused goal
+    * then, focus the first goal and add `IndentTactic indent` of top of the stack.
 
-Implem details:
-* happens mostly in `proof_bullet.ml` + tracking of indentation in higher levels
-  and call of `Proof_bullet.push` with a new `BulletIndent` type for each tactic
-* add `Proofview.nb_goals` (look at `Proofview.finished`)
-* add `Proof.nb_focused_goals` (look at `Proof.no_focused_goal`)
+### Implementation details / notes
 
-## Examples
+* The implementation will mostly happen in `proof_bullet.ml`, with
+  some additional tracking of indentation in higher levels that can
+  likely reuse current locations.
+* The implementation will call `Proof_bullet.push` with a new
+  `BulletIndent` type for each tactic.
+* We'll need to add a `Proofview.nb_goals` (look at
+  `Proofview.finished`).
+* We'll need to add a `Proof.nb_focused_goals` (look at
+  `Proof.no_focused_goal`).
+
+## Running example
+
+Previous example illustrating the state of the stack at each step:
+
+```Coq
+Goal True /\ True /\ (True /\ True).
+Proof.
+(* stack = [] *)
+split.
+(* stack = [IndentTactic 0] *)
+  idtac.
+(* stack = [IdentTactic 2; IndentTactic 0] *)
+  exact I.
+idtac.
+(* stack = [IndentTactic 0] *)
+split; [|split].
+-
+(* stack = [IdentBullet (-, 0); IndentTactic 0] *)
+  idtac.
+(* stack = [IdentTactic 2; IdentBullet (-, 0); IndentTactic 0] *)
+  exact I.
+-
+(* stack = [IdentBullet (-, 0); IndentTactic 0] *)
+  idtac.
+(* stack = [IdentTactic 2; IdentBullet (-, 0); IndentTactic 0] *)
+  exact I.
+idtac.
+(* stack = [IndentTactic 0] *)
+exact I.
+Qed.
+```
+
+## More examples
 
 ### Warning and errors
 
@@ -111,16 +184,14 @@ Set Bullet Behavior "Indent".
 
 Goal True /\ True /\ (True /\ True).
 Proof.
-- (* Error: cannot use bullet on single goal
-     (currently accepted) *)
+- (* Warning: useless bullet on single goal *)
 Abort.
 
 Goal True /\ True /\ (True /\ True).
 Proof.
 split.
 -
-  + (* Error: cannot use bullet on single goal
-       (currently accepted) *)
+  + (* Warning: useless bullet on single goal *)
 Abort.
 
 Goal True /\ True /\ True.
@@ -174,7 +245,7 @@ Goal True /\ True /\ (True /\ True).
 Proof.
 split.
   exact I.  (* positive indentation, exactly two goals, focusing first *)
-split; [|split].
+split; [|split].  (* last subgoal, using negative indentation *)
 - exact I. (* regular use of bullets *)
 - exact I.
 exact I.  (* last subgoal, using negative indentation *)
