@@ -126,14 +126,10 @@ with incompatible levels").
 Print Notation Levels [in custom_entry].
 ```
 
-would print all used levels as an ordered list, then declared but
-unsuded levels and their constraints. All levels are printed along
+would print levels and their constraints. All levels are printed along
 with their associativity.
 
 Entry defaults to "in constr".
-
-The `Print Grammar` command should also print the subset of levels
-used in the printed grammar.
 
 ## Remarks
 
